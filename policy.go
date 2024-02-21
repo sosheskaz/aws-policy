@@ -3,7 +3,6 @@ package awspolicy
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
@@ -180,9 +179,15 @@ func (statementJSON *Statement) Parse(statement map[string]interface{}) {
 			// Condition can be string, []string or map(lot of options)
 			switch statementValue := statementValue.(type) {
 			case string:
-				condition = make([]string, 0)
-				statementJSON.Condition = append(condition, statementValue)
+				statementJSON.Condition = append(statementJSON.Condition, statementValue)
 			case []interface{}:
+				for _, condition := range statementValue {
+					conditionJson, err := json.Marshal(condition)
+					if err != nil {
+						log.Error().Str("Error parsing conditions", "failed to remarshal condition to JSON").Err(err).Msg("")
+					}
+					statementJSON.Condition = append(statementJSON.Condition, string(conditionJson))
+				}
 				err = mapstructure.Decode(statementValue, &statementJSON.Condition)
 				if err != nil {
 					log.Error().Str("Error parsing policies", "Error using mapstructure parsing Policy statement condition element").Err(err).Msg("")
@@ -190,7 +195,11 @@ func (statementJSON *Statement) Parse(statement map[string]interface{}) {
 			// If map format as raw text and store it as string
 			case map[string]interface{}:
 				condition = make([]string, 0)
-				statementJSON.Condition = append(condition, fmt.Sprintf("%v", statementValue))
+				conditionJson, err := json.Marshal(statementValue)
+				if err != nil {
+					log.Error().Str("Error parsing conditions", "failed to remarshal condition to JSON").Err(err).Msg("")
+				}
+				statementJSON.Condition = append(condition, string(conditionJson))
 			}
 		}
 	}
